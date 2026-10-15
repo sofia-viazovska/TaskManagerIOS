@@ -14,6 +14,8 @@ struct ContentView: View {
     // Тимчасовий стан форми — суто питання UI, тому живе у View.
     @State private var newTitle = ""
     @State private var newPriority: Priority = .medium
+    @State private var hasDeadline = false
+    @State private var deadlineDays = 1
 
     var body: some View {
         NavigationStack {
@@ -28,8 +30,17 @@ struct ContentView: View {
                     }
                     .pickerStyle(.segmented)
 
+                    Toggle("Є дедлайн", isOn: $hasDeadline)
+                    if hasDeadline {
+                        Stepper("Через \(deadlineDays) дн.", value: $deadlineDays, in: 0...365)
+                    }
+
                     Button("Додати") {
-                        viewModel.addTask(title: newTitle, priority: newPriority)
+                        viewModel.addTask(
+                            title: newTitle,
+                            priority: newPriority,
+                            dueInDays: hasDeadline ? deadlineDays : nil
+                        )
                         if viewModel.errorMessage == nil {
                             newTitle = ""
                         }
@@ -41,6 +52,15 @@ struct ContentView: View {
                         Text(message)
                             .foregroundStyle(.red)
                     }
+                }
+
+                Section("Вигляд") {
+                    Picker("Сортування", selection: $viewModel.sortOption) {
+                        ForEach(SortOption.allCases) { option in
+                            Text(option.strategy.name).tag(option)
+                        }
+                    }
+                    Toggle("Лише невиконані", isOn: $viewModel.showOnlyPending)
                 }
 
                 Section("Підсумок") {
@@ -77,5 +97,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView(viewModel: AppEnvironment.makeViewModel())
+    ContentView(viewModel: AppEnvironment.makeDemoViewModel())
 }

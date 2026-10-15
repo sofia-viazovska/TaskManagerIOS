@@ -3,18 +3,29 @@
 //  TaskManager
 //
 //  ViewModel (MVVM): стан екрана + команди від View. Тут немає SwiftUI-віджетів
-//  і немає знання про конкретне сховище — лише TaskList (модель) та
-//  абстракція TaskRepository, яку передають ззовні (Dependency Injection).
+//  і немає знання про конкретне сховище чи системний годинник — лише TaskList
+//  (модель), абстракція TaskRepository та функція `now`, які передають ззовні
+//  (Dependency Injection).
+//
+//  Патерни: Builder (створення задачі в addTask), Strategy (сортування в refresh).
 //
 
 import Foundation
 import Combine
 
 final class TaskListViewModel: ObservableObject {
-    // MARK: Стан для View (лише читання ззовні)
+    // MARK: Стан для View
 
     @Published private(set) var tasks: [TaskItem] = []
     @Published private(set) var errorMessage: String?
+
+    /// Налаштування вигляду: зміна одразу перераховує список.
+    @Published var sortOption: SortOption = .priority {
+        didSet { refresh() }
+    }
+    @Published var showOnlyPending = false {
+        didSet { refresh() }
+    }
 
     var title: String { listName }
     var summary: String { taskList.describe() }
@@ -23,13 +34,13 @@ final class TaskListViewModel: ObservableObject {
 
     private let listName: String
     private let repository: any TaskRepository
+    private let now: () -> Date
     private var taskList: TaskList
 
-    /// Залежність (`repository`) приходить через ініціалізатор — ViewModel
-    /// сама не створює і не обирає сховище.
-    init(listName: String, repository: any TaskRepository) {
+    init(listName: String, repository: any TaskRepository, now: @escaping () -> Date) {
         self.listName = listName
         self.repository = repository
+        self.now = now
         self.taskList = TaskList(name: listName)
     }
 
@@ -46,17 +57,23 @@ final class TaskListViewModel: ObservableObject {
         refresh()
     }
 
-    func addTask(title: String, priority: Priority) {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            errorMessage = "Назва задачі не може бути порожньою"
-            return
-        }
+    /// `dueInDays == nil` — задача без дедлайну.
+    func addTask(title: String, priority: Priority, dueInDays: Int? = nil) {
+        do {
+            // Builder: накопичуємо параметри, а валідацію виконує build().
+            var builder = TaskItemBuilder(title: title).withPriority(priority)
+            if let days = dueInDays {
+                builder = builder.dueIn(days: days, from: now())
+            }
+            let task = try builder.build()
 
-        taskList.add(TaskItem(title: trimmed, priority: priority))
-        errorMessage = nil
-        persist()
-        refresh()
+            taskList.add(task)
+            errorMessage = nil
+            persist()
+            refresh()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func toggleDone(id: TaskItem.ID) {
@@ -76,8 +93,9 @@ final class TaskListViewModel: ObservableObject {
         }
     }
 
-    /// Перераховує те, що бачить View: спочатку найважливіші задачі.
+    /// Фільтрація (модель) + сортування (Strategy) → те, що бачить View.
     private func refresh() {
-        tasks = taskList.tasks.sorted { $0.priority > $1.priority }
+        let base = showOnlyPending ? taskList.pendingTasks() : taskList.tasks
+        tasks = sortOption.strategy.sorted(base)
     }
 }

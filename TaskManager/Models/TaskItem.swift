@@ -58,8 +58,10 @@ struct TaskItem: Identifiable, Describable {
     var dueDate: Date?
     var isDone: Bool
 
-    init(title: String, priority: Priority = .medium, dueDate: Date? = nil, isDone: Bool = false) {
-        self.id = UUID()
+    /// `id` за замовчуванням генерується, але його можна передати явно —
+    /// це потрібно, щоб відновити збережену задачу з тим самим ідентифікатором.
+    init(id: UUID = UUID(), title: String, priority: Priority = .medium, dueDate: Date? = nil, isDone: Bool = false) {
+        self.id = id
         self.title = title
         self.priority = priority
         self.dueDate = dueDate
