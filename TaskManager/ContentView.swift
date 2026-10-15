@@ -2,27 +2,57 @@
 //  ContentView.swift
 //  TaskManager
 //
-//  Мінімальний SwiftUI-екран для демонстрації сценарію лаби 1.
+//  View (MVVM): лише відображає стан ViewModel і передає їй дії користувача.
+//  Тут немає створення моделей, роботи зі сховищем чи бізнес-правил.
 //
 
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var taskList = TaskList(name: "Навчання")
+    @ObservedObject var viewModel: TaskListViewModel
+
+    // Тимчасовий стан форми — суто питання UI, тому живе у View.
+    @State private var newTitle = ""
+    @State private var newPriority: Priority = .medium
 
     var body: some View {
         NavigationStack {
             List {
+                Section("Нова задача") {
+                    TextField("Назва задачі", text: $newTitle)
+
+                    Picker("Пріоритет", selection: $newPriority) {
+                        ForEach(Priority.allCases, id: \.self) { priority in
+                            Text(priority.displayName).tag(priority)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Button("Додати") {
+                        viewModel.addTask(title: newTitle, priority: newPriority)
+                        if viewModel.errorMessage == nil {
+                            newTitle = ""
+                        }
+                    }
+                }
+
+                if let message = viewModel.errorMessage {
+                    Section {
+                        Text(message)
+                            .foregroundStyle(.red)
+                    }
+                }
+
                 Section("Підсумок") {
-                    Text(taskList.describe())
+                    Text(viewModel.summary)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
                 Section("Задачі") {
-                    ForEach(taskList.tasks) { task in
+                    ForEach(viewModel.tasks) { task in
                         Button {
-                            taskList.toggleDone(id: task.id)
+                            viewModel.toggleDone(id: task.id)
                         } label: {
                             HStack(alignment: .top) {
                                 Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
@@ -40,39 +70,12 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle(taskList.name)
-            .onAppear(perform: runDemoScenario)
-        }
-    }
-
-    /// Демонстраційний сценарій із завдання: створення задач, додавання їх
-    /// до списку, позначення однієї виконаною та вивід відфільтрованого
-    /// результату (невиконані задачі) в консоль під час запуску.
-    private func runDemoScenario() {
-        // Захист від повторного запуску при кожному onAppear.
-        guard taskList.tasks.isEmpty else { return }
-
-        taskList.add(TaskItem(title: "Здати лабу 1", priority: .high, dueDate: Date()))
-        taskList.add(TaskItem(title: "Прочитати Swift Basics 2.0", priority: .medium))
-        taskList.add(TaskItem(title: "Налаштувати git remote", priority: .low, isDone: true))
-
-        // Демонстрація toggleDone: позначаємо першу задачу виконаною.
-        if let firstID = taskList.tasks.first?.id {
-            taskList.toggleDone(id: firstID)
-        }
-
-        print("== \(taskList.describe()) ==")
-        for task in taskList.tasks {
-            print(task.describe())
-        }
-
-        print("Невиконані задачі за пріоритетом:")
-        for task in taskList.pendingTasks() {
-            print("- \(task.describe())")
+            .navigationTitle(viewModel.title)
+            .task { viewModel.load() }
         }
     }
 }
 
 #Preview {
-    ContentView()
+    ContentView(viewModel: AppEnvironment.makeViewModel())
 }

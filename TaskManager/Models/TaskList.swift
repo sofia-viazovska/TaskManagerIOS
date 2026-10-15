@@ -2,48 +2,46 @@
 //  TaskList.swift
 //  TaskManager
 //
-//  Колекція задач і логіка роботи з нею.
+//  Доменна модель: колекція задач і бізнес-правила роботи з нею.
+//
+//  Лаба 2: клас більше НЕ є ObservableObject і не знає про SwiftUI/Combine.
+//  Стан для екрана тепер публікує ViewModel, а зберігання — Repository.
+//  TaskList відповідає лише за правила: додати задачу, перемкнути статус,
+//  вибрати невиконані.
 //
 
 import Foundation
-import Combine
 
 /// Список задач.
 ///
-/// `TaskList` навмисно зроблена `class`, а не `struct`: це семантика
-/// посилання. SwiftUI-екран, дії користувача та демонстраційний сценарій
-/// мають працювати з ОДНИМ і тим самим списком — якщо передати TaskList
-/// у кілька місць коду, усі вони бачитимуть одні й ті самі задачі та їх
-/// зміни, на відміну від struct, де кожна копія була б окремою.
-///
-/// Конформність до `ObservableObject` + `@Published` дозволяє SwiftUI
-/// автоматично оновлювати екран при зміні задач.
-final class TaskList: ObservableObject, Describable {
+/// Залишається `class` (семантика посилання, як у лабі 1): ViewModel тримає
+/// один екземпляр і змінює його in-place, а Repository отримує знімок
+/// масиву `tasks` (масив — значення, тому знімок незалежний від подальших змін).
+final class TaskList: Describable {
     let name: String
-    @Published private(set) var tasks: [TaskItem] = []
+    private(set) var tasks: [TaskItem]
 
-    init(name: String) {
+    init(name: String, tasks: [TaskItem] = []) {
         self.name = name
+        self.tasks = tasks
     }
 
     func add(_ task: TaskItem) {
         tasks.append(task)
     }
 
-    /// Перемикає стан "виконано" для задачі за її id.
-    /// `guard let` — безпечне розгортання: якщо задачі з таким id немає,
-    /// метод просто завершується, без падіння програми.
-    func toggleDone(id: TaskItem.ID) {
-        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+    /// Перемикає стан "виконано" за id.
+    /// Повертає `false`, якщо задачі з таким id немає (`guard let` — безпечне розгортання).
+    @discardableResult
+    func toggleDone(id: TaskItem.ID) -> Bool {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return false }
         tasks[index].isDone.toggle()
+        return true
     }
 
-    /// Невиконані задачі, відсортовані за пріоритетом (найважливіші перші).
-    /// Демонструє обробку колекції: `filter` + `sorted`.
+    /// Невиконані задачі (лише фільтрація; порядок визначає той, хто викликає).
     func pendingTasks() -> [TaskItem] {
-        tasks
-            .filter { !$0.isDone }
-            .sorted { $0.priority > $1.priority }
+        tasks.filter { !$0.isDone }
     }
 
     /// Заголовки всіх задач — приклад `map`.

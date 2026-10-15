@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct TaskManagerApp: App {
+    // Власник ViewModel — застосунок; конкретні залежності збирає AppEnvironment.
+    @StateObject private var viewModel = AppEnvironment.makeViewModel()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(viewModel: viewModel)
         }
     }
 }
