@@ -8,7 +8,7 @@
 //             і гарантувати, що в застосунок потрапляє лише валідна задача.
 //  Учасники:  Product — TaskItem; Builder — TaskItemBuilder (ланцюжок with…/dueIn);
 //             Director — TaskListViewModel і AppEnvironment (викликають builder).
-//  Де:        TaskListViewModel.addTask, AppEnvironment.demoTasks.
+//  Де:        TaskListViewModel.create / update, AppEnvironment.demoTasks.
 //
 
 import Foundation
@@ -37,9 +37,24 @@ struct TaskItemBuilder {
     private var priority: Priority = .medium
     private var dueDate: Date?
     private var isDone = false
+    private var notes = ""
+    private var id: UUID?
 
     init(title: String) {
         self.title = title
+    }
+
+    /// Зберегти існуючий ідентифікатор (під час редагування задача лишається тією самою).
+    func withID(_ value: UUID) -> TaskItemBuilder {
+        var copy = self
+        copy.id = value
+        return copy
+    }
+
+    func withNotes(_ value: String) -> TaskItemBuilder {
+        var copy = self
+        copy.notes = value
+        return copy
     }
 
     func withPriority(_ value: Priority) -> TaskItemBuilder {
@@ -79,6 +94,13 @@ struct TaskItemBuilder {
             throw TaskItemBuilderError.titleTooLong(limit: Self.maxTitleLength)
         }
 
-        return TaskItem(title: trimmed, priority: priority, dueDate: dueDate, isDone: isDone)
+        return TaskItem(
+            id: id ?? UUID(),
+            title: trimmed,
+            priority: priority,
+            dueDate: dueDate,
+            isDone: isDone,
+            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
 }

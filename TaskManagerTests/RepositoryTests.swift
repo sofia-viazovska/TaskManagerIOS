@@ -19,7 +19,7 @@ struct RepositoryTests {
         #expect(try repository.loadTasks().isEmpty)
 
         let tasks = [
-            TaskItem(title: "Перша", priority: .high, dueDate: now),
+            TaskItem(title: "Перша", priority: .high, dueDate: now, notes: "Нотатки до першої"),
             TaskItem(title: "Друга", priority: .low, isDone: true)
         ]
         try repository.saveTasks(tasks)
@@ -30,6 +30,7 @@ struct RepositoryTests {
         #expect(loaded.map(\.priority) == tasks.map(\.priority))
         #expect(loaded.map(\.dueDate) == tasks.map(\.dueDate))
         #expect(loaded.map(\.isDone) == tasks.map(\.isDone))
+        #expect(loaded.map(\.notes) == tasks.map(\.notes))
     }
 
     private func makeIsolatedDefaults() throws -> (UserDefaults, String) {
@@ -71,5 +72,23 @@ struct RepositoryTests {
 
         #expect(loaded.count == 1)
         #expect(loaded.first?.priority == .medium)
+    }
+
+    /// Дані, збережені лабою 2, не мають поля notes — вони мусять читатися без помилки.
+    @Test func recordsSavedWithoutNotesStillLoad() throws {
+        let (defaults, suite) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let id = UUID()
+        let legacyJSON = """
+        [{"id":"\(id.uuidString)","title":"Стара","priority":"high","isDone":false}]
+        """
+        defaults.set(Data(legacyJSON.utf8), forKey: "tasks")
+        let repository = UserDefaultsTaskRepository(defaults: defaults, key: "tasks")
+
+        let loaded = try repository.loadTasks()
+
+        #expect(loaded.count == 1)
+        #expect(loaded.first?.id == id)
+        #expect(loaded.first?.notes == "")
     }
 }

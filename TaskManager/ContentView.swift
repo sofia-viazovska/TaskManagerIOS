@@ -2,100 +2,49 @@
 //  ContentView.swift
 //  TaskManager
 //
-//  View (MVVM): лише відображає стан ViewModel і передає їй дії користувача.
-//  Тут немає створення моделей, роботи зі сховищем чи бізнес-правил.
+//  Корінь навігації. Тут маршрути (`TaskRoute`, `TaskModal`) перетворюються
+//  на конкретні екрани. Самі екрани нічого не знають один про одного:
+//  вони лише викликають методи роутера.
+//
+//  Карта навігації — у docs/NAVIGATION.md.
 //
 
 import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var viewModel: TaskListViewModel
-
-    // Тимчасовий стан форми — суто питання UI, тому живе у View.
-    @State private var newTitle = ""
-    @State private var newPriority: Priority = .medium
-    @State private var hasDeadline = false
-    @State private var deadlineDays = 1
+    @ObservedObject var router: AppRouter
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section("Нова задача") {
-                    TextField("Назва задачі", text: $newTitle)
-
-                    Picker("Пріоритет", selection: $newPriority) {
-                        ForEach(Priority.allCases, id: \.self) { priority in
-                            Text(priority.displayName).tag(priority)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    Toggle("Є дедлайн", isOn: $hasDeadline)
-                    if hasDeadline {
-                        Stepper("Через \(deadlineDays) дн.", value: $deadlineDays, in: 0...365)
-                    }
-
-                    Button("Додати") {
-                        viewModel.addTask(
-                            title: newTitle,
-                            priority: newPriority,
-                            dueInDays: hasDeadline ? deadlineDays : nil
-                        )
-                        if viewModel.errorMessage == nil {
-                            newTitle = ""
-                        }
-                    }
-                }
-
-                if let message = viewModel.errorMessage {
-                    Section {
-                        Text(message)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                Section("Вигляд") {
-                    Picker("Сортування", selection: $viewModel.sortOption) {
-                        ForEach(SortOption.allCases) { option in
-                            Text(option.strategy.name).tag(option)
-                        }
-                    }
-                    Toggle("Лише невиконані", isOn: $viewModel.showOnlyPending)
-                }
-
-                Section("Підсумок") {
-                    Text(viewModel.summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("Задачі") {
-                    ForEach(viewModel.tasks) { task in
-                        Button {
-                            viewModel.toggleDone(id: task.id)
-                        } label: {
-                            HStack(alignment: .top) {
-                                Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(task.isDone ? .green : .secondary)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(task.title)
-                                        .strikethrough(task.isDone)
-                                    Text(task.describe())
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
+        TabView(selection: $router.selectedTab) {
+            Tab("Задачі", systemImage: "checklist", value: AppTab.tasks) {
+                NavigationStack(path: $router.path) {
+                    TaskListScreen(viewModel: viewModel, router: router)
+                        .navigationDestination(for: TaskRoute.self) { route in
+                            switch route {
+                            case .detail(let taskID):
+                                TaskDetailScreen(taskID: taskID, viewModel: viewModel, router: router)
                             }
                         }
-                        .buttonStyle(.plain)
-                    }
                 }
             }
-            .navigationTitle(viewModel.title)
-            .task { viewModel.load() }
+
+            Tab("Статистика", systemImage: "chart.bar.fill", value: AppTab.statistics) {
+                StatisticsScreen(viewModel: viewModel, router: router)
+            }
         }
+        // Модальне вікно висить на корені: його можна відкрити з будь-якого екрана стеку.
+        .sheet(item: $router.modal) { modal in
+            TaskEditorScreen(modal: modal, viewModel: viewModel, router: router)
+        }
+        // Завантаження — один раз для всього застосунку, а не при кожному поверненні на список.
+        .task { viewModel.load() }
     }
 }
 
 #Preview {
-    ContentView(viewModel: AppEnvironment.makeDemoViewModel())
+    ContentView(
+        viewModel: AppEnvironment.makeDemoViewModel(),
+        router: AppEnvironment.makeRouter()
+    )
 }

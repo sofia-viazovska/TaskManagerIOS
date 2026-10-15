@@ -19,6 +19,11 @@ enum AppEnvironment {
         isDemo ? makeDemoViewModel() : makeLiveViewModel()
     }
 
+    /// Роутер не залежить від даних — створюється окремо і живе стільки ж, скільки застосунок.
+    static func makeRouter() -> AppRouter {
+        AppRouter()
+    }
+
     /// Реальна залежність: Adapter над UserDefaults.
     static func makeLiveViewModel() -> TaskListViewModel {
         let repository = UserDefaultsTaskRepository(defaults: .standard, key: "tasks.v1")
@@ -34,9 +39,20 @@ enum AppEnvironment {
 
     private static func demoTasks(now: Date) -> [TaskItem] {
         let builders: [TaskItemBuilder] = [
-            TaskItemBuilder(title: "Здати лабу 2").withPriority(.high).dueIn(days: 1, from: now),
-            TaskItemBuilder(title: "Прочитати про MVVM").withPriority(.medium).dueIn(days: 3, from: now),
-            TaskItemBuilder(title: "Налаштувати git remote").withPriority(.low).markedDone()
+            TaskItemBuilder(title: "Здати лабу 3")
+                .withPriority(.high)
+                .dueIn(days: 1, from: now)
+                .withNotes("Навігація: Router + NavigationStack. Перевірити на двох розмірах екрана, зробити скріншоти й тег practical-3."),
+            TaskItemBuilder(title: "Прочитати про NavigationStack")
+                .withPriority(.medium)
+                .dueIn(days: 3, from: now)
+                .withNotes("Документація Apple: NavigationStack, NavigationPath, navigationDestination(for:)."),
+            TaskItemBuilder(title: "Повторити MVVM")
+                .withPriority(.medium)
+                .dueIn(days: -1, from: now),
+            TaskItemBuilder(title: "Налаштувати git remote")
+                .withPriority(.low)
+                .markedDone()
         ]
         return builders.compactMap { try? $0.build() }
     }

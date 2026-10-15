@@ -9,12 +9,13 @@ import SwiftUI
 
 @main
 struct TaskManagerApp: App {
-    // Власник ViewModel — застосунок; конкретні залежності збирає AppEnvironment.
+    // Власник ViewModel і Router — застосунок; конкретні залежності збирає AppEnvironment.
     @StateObject private var viewModel = AppEnvironment.makeViewModel()
+    @StateObject private var router = AppEnvironment.makeRouter()
 
     var body: some Scene {
         WindowGroup {
-            ContentView(viewModel: viewModel)
+            ContentView(viewModel: viewModel, router: router)
         }
     }
 }

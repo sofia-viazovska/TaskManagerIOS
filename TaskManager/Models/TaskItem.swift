@@ -57,15 +57,33 @@ struct TaskItem: Identifiable, Describable {
     var priority: Priority
     var dueDate: Date?
     var isDone: Bool
+    /// Додатковий опис (показується на екрані деталей у блоці, що розгортається).
+    var notes: String
 
     /// `id` за замовчуванням генерується, але його можна передати явно —
-    /// це потрібно, щоб відновити збережену задачу з тим самим ідентифікатором.
-    init(id: UUID = UUID(), title: String, priority: Priority = .medium, dueDate: Date? = nil, isDone: Bool = false) {
+    /// це потрібно, щоб відновити збережену задачу з тим самим ідентифікатором
+    /// (сховище) або зберегти ідентифікатор під час редагування.
+    init(
+        id: UUID = UUID(),
+        title: String,
+        priority: Priority = .medium,
+        dueDate: Date? = nil,
+        isDone: Bool = false,
+        notes: String = ""
+    ) {
         self.id = id
         self.title = title
         self.priority = priority
         self.dueDate = dueDate
         self.isDone = isDone
+        self.notes = notes
+    }
+
+    /// Задача прострочена, якщо вона не виконана і дедлайн уже минув.
+    /// Поточний час передається ззовні, тому результат детермінований.
+    func isOverdue(at now: Date) -> Bool {
+        guard !isDone, let dueDate else { return false }
+        return dueDate < now
     }
 
     /// Текстовий опис задачі. Демонструє безпечне розгортання optional

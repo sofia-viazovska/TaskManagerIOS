@@ -30,6 +30,28 @@ final class TaskList: Describable {
         tasks.append(task)
     }
 
+    /// Знаходить задачу за ідентифікатором — екрани передають лише id,
+    /// а актуальні дані беруть звідси.
+    func task(id: TaskItem.ID) -> TaskItem? {
+        tasks.first { $0.id == id }
+    }
+
+    /// Замінює збережену задачу з тим самим id. `false` — такої задачі немає.
+    @discardableResult
+    func update(_ task: TaskItem) -> Bool {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return false }
+        tasks[index] = task
+        return true
+    }
+
+    /// Видаляє задачу за id. `false` — такої задачі немає.
+    @discardableResult
+    func remove(id: TaskItem.ID) -> Bool {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return false }
+        tasks.remove(at: index)
+        return true
+    }
+
     /// Перемикає стан "виконано" за id.
     /// Повертає `false`, якщо задачі з таким id немає (`guard let` — безпечне розгортання).
     @discardableResult
@@ -51,6 +73,21 @@ final class TaskList: Describable {
 
     var completedCount: Int {
         tasks.filter(\.isDone).count
+    }
+
+    /// Підсумки для екрана статистики. Поточний час передається ззовні.
+    func statistics(now: Date) -> TaskStatistics {
+        var countsByPriority: [Priority: Int] = [:]
+        for task in tasks {
+            countsByPriority[task.priority, default: 0] += 1
+        }
+
+        return TaskStatistics(
+            total: tasks.count,
+            completed: completedCount,
+            overdue: tasks.filter { $0.isOverdue(at: now) }.count,
+            countsByPriority: countsByPriority
+        )
     }
 
     func describe() -> String {

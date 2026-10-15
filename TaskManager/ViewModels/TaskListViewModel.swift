@@ -2,16 +2,31 @@
 //  TaskListViewModel.swift
 //  TaskManager
 //
-//  ViewModel (MVVM): стан екрана + команди від View. Тут немає SwiftUI-віджетів
-//  і немає знання про конкретне сховище чи системний годинник — лише TaskList
-//  (модель), абстракція TaskRepository та функція `now`, які передають ззовні
-//  (Dependency Injection).
+//  ViewModel (MVVM): єдине джерело правди про задачі для всіх екранів.
+//  Екрани передають між собою лише ідентифікатор задачі, а актуальні дані
+//  беруть звідси — тому після створення чи редагування всі екрани оновлюються
+//  самі, без повернення результату «вручну».
 //
-//  Патерни: Builder (створення задачі в addTask), Strategy (сортування в refresh).
+//  Тут немає SwiftUI-віджетів і немає навігації (за неї відповідає AppRouter).
+//  Залежності (сховище, годинник) приходять через init.
+//
+//  Патерни: Builder (створення/оновлення задачі), Strategy (сортування).
 //
 
 import Foundation
 import Combine
+
+/// Помилки редагування, які не пов'язані з валідацією полів.
+nonisolated enum TaskEditingError: Error, LocalizedError, Equatable {
+    case taskNotFound
+
+    var errorDescription: String? {
+        switch self {
+        case .taskNotFound:
+            return "Задачу не знайдено — можливо, її вже видалено"
+        }
+    }
+}
 
 final class TaskListViewModel: ObservableObject {
     // MARK: Стан для View
@@ -29,6 +44,10 @@ final class TaskListViewModel: ObservableObject {
 
     var title: String { listName }
     var summary: String { taskList.describe() }
+    var statistics: TaskStatistics { taskList.statistics(now: now()) }
+
+    /// Запропонований дедлайн для нової задачі: завтра від «зараз» (годинник ін'єктований).
+    var defaultDeadline: Date { now().addingTimeInterval(24 * 60 * 60) }
 
     // MARK: Залежності
 
@@ -44,7 +63,23 @@ final class TaskListViewModel: ObservableObject {
         self.taskList = TaskList(name: listName)
     }
 
-    // MARK: Команди (їх викликає View)
+    // MARK: Запити (читання для екранів)
+
+    func task(id: TaskItem.ID) -> TaskItem? {
+        taskList.task(id: id)
+    }
+
+    func isOverdue(_ task: TaskItem) -> Bool {
+        task.isOverdue(at: now())
+    }
+
+    /// Чернетка для форми редагування. `nil` — задачі вже немає.
+    func draft(for id: TaskItem.ID) -> TaskDraft? {
+        guard let task = taskList.task(id: id) else { return nil }
+        return TaskDraft(title: task.title, priority: task.priority, dueDate: task.dueDate, notes: task.notes)
+    }
+
+    // MARK: Команди (їх викликають екрани)
 
     func load() {
         do {
@@ -57,23 +92,38 @@ final class TaskListViewModel: ObservableObject {
         refresh()
     }
 
-    /// `dueInDays == nil` — задача без дедлайну.
-    func addTask(title: String, priority: Priority, dueInDays: Int? = nil) {
-        do {
-            // Builder: накопичуємо параметри, а валідацію виконує build().
-            var builder = TaskItemBuilder(title: title).withPriority(priority)
-            if let days = dueInDays {
-                builder = builder.dueIn(days: days, from: now())
-            }
-            let task = try builder.build()
+    /// Створює задачу з чернетки. Помилку валідації кидає далі — її показує форма,
+    /// яка й викликала команду, а не загальний банер списку.
+    func create(_ draft: TaskDraft) throws {
+        let task = try builder(for: draft).build()
 
-            taskList.add(task)
-            errorMessage = nil
-            persist()
-            refresh()
-        } catch {
-            errorMessage = error.localizedDescription
+        taskList.add(task)
+        errorMessage = nil
+        persist()
+        refresh()
+    }
+
+    /// Оновлює наявну задачу: id і стан «виконано» зберігаються, решта — з чернетки.
+    func update(id: TaskItem.ID, with draft: TaskDraft) throws {
+        guard let existing = taskList.task(id: id) else {
+            throw TaskEditingError.taskNotFound
         }
+        let updated = try builder(for: draft)
+            .withID(existing.id)
+            .markedDone(existing.isDone)
+            .build()
+
+        taskList.update(updated)
+        errorMessage = nil
+        persist()
+        refresh()
+    }
+
+    func delete(id: TaskItem.ID) {
+        guard taskList.remove(id: id) else { return }
+        errorMessage = nil
+        persist()
+        refresh()
     }
 
     func toggleDone(id: TaskItem.ID) {
@@ -84,6 +134,14 @@ final class TaskListViewModel: ObservableObject {
     }
 
     // MARK: Приватна логіка
+
+    /// Builder: накопичуємо значення з чернетки, а валідацію виконує build().
+    private func builder(for draft: TaskDraft) -> TaskItemBuilder {
+        TaskItemBuilder(title: draft.title)
+            .withPriority(draft.priority)
+            .withDueDate(draft.dueDate)
+            .withNotes(draft.notes)
+    }
 
     private func persist() {
         do {

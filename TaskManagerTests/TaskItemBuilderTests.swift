@@ -53,4 +53,34 @@ struct TaskItemBuilderTests {
         #expect(high.priority == .high)
         #expect(plain.priority == .medium)
     }
+
+    @Test func notesAreTrimmedAndStored() throws {
+        let task = try TaskItemBuilder(title: "З нотатками")
+            .withNotes("  деталі  \n")
+            .build()
+
+        #expect(task.notes == "деталі")
+    }
+
+    @Test func withIDKeepsIdentifierForEditing() throws {
+        let id = UUID()
+
+        let task = try TaskItemBuilder(title: "Редагована").withID(id).build()
+        let other = try TaskItemBuilder(title: "Нова").build()
+
+        #expect(task.id == id)
+        #expect(other.id != id)
+    }
+
+    @Test func overdueOnlyForPendingTasksWithPastDeadline() throws {
+        let past = try TaskItemBuilder(title: "Минуле").dueIn(days: -1, from: now).build()
+        let future = try TaskItemBuilder(title: "Майбутнє").dueIn(days: 1, from: now).build()
+        let doneInPast = try TaskItemBuilder(title: "Готова").dueIn(days: -1, from: now).markedDone().build()
+        let noDeadline = try TaskItemBuilder(title: "Без дедлайну").build()
+
+        #expect(past.isOverdue(at: now))
+        #expect(!future.isOverdue(at: now))
+        #expect(!doneInPast.isOverdue(at: now))
+        #expect(!noDeadline.isOverdue(at: now))
+    }
 }

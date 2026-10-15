@@ -22,6 +22,9 @@ nonisolated struct TaskRecord: Codable, Equatable {
     var priority: String
     var dueDate: Date?
     var isDone: Bool
+    /// Додано в лабі 3. Optional зі значенням за замовчуванням: записи, збережені
+    /// раніше (без цього поля), як і раніше успішно читаються.
+    var notes: String? = nil
 }
 
 /// Адаптер `UserDefaults` до `TaskRepository`.
@@ -50,7 +53,8 @@ final class UserDefaultsTaskRepository: TaskRepository {
                 // Невідоме значення (наприклад, зі старої версії) — безпечний варіант за замовчуванням.
                 priority: Priority(rawValue: record.priority) ?? .medium,
                 dueDate: record.dueDate,
-                isDone: record.isDone
+                isDone: record.isDone,
+                notes: record.notes ?? ""
             )
         }
     }
@@ -62,7 +66,8 @@ final class UserDefaultsTaskRepository: TaskRepository {
                 title: task.title,
                 priority: task.priority.rawValue,
                 dueDate: task.dueDate,
-                isDone: task.isDone
+                isDone: task.isDone,
+                notes: task.notes
             )
         }
         defaults.set(try encoder.encode(records), forKey: key)
