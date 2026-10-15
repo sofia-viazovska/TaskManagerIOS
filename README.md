@@ -15,8 +15,17 @@
 
 ## Технічні вимоги
 
-- Xcode: `_вкажи свою версію (Xcode → About Xcode)_`
-- Мінімальна версія iOS: `_вкажи, яку обрала при створенні проєкту (зазвичай видно в налаштуваннях таргета TaskManager → General → Minimum Deployments)_`
+- Xcode: 26.6
+- Мінімальна підтримувана версія iOS: 26.5 (iPhone та iPad)
+- Мова: Swift, інтерфейс — SwiftUI
+- Bundle Identifier: `kpi.ios.vybirka.TaskManager`
+
+## Підготовка проєкту
+
+Додаткових залежностей (SPM, CocoaPods) і секретів немає — достатньо клонувати
+репозиторій і відкрити `TaskManager.xcodeproj` в Xcode 26.6 або новішому.
+Якщо у вас інший Apple ID, у налаштуваннях таргета TaskManager → Signing & Capabilities
+оберіть свою Team, щоб запускати на пристрої (для симулятора це не потрібно).
 
 ## Запуск проєкту
 
