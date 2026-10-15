@@ -1,17 +1,24 @@
 # TaskManager
 
-Практична робота №1 — основа iOS-застосунку, контроль версій, базові конструкції Swift.
+Навчальний iOS-застосунок для планування задач (SwiftUI, архітектура MVVM).
+Розвивається послідовно в практичних роботах; кожна здається окремим тегом.
+
+| Робота | Тема | Тег |
+|---|---|---|
+| 1 | Основа проєкту, Git, базові конструкції Swift | `practical-1` |
+| 2 | Архітектура (MVVM), патерни проєктування, SOLID | `practical-2` |
 
 ## Предметна область
 
-Застосунок для персонального планування задач. Користувач створює задачі,
-позначає їх виконаними та бачить, що ще залишилось зробити.
+Застосунок для персонального планування задач. Користувач створює задачі з
+пріоритетом і необов'язковим дедлайном, позначає їх виконаними, сортує й фільтрує
+список. Дані зберігаються між запусками.
 
 Сутності:
 - **TaskItem** — окрема задача: назва, пріоритет, необов'язковий дедлайн, статус виконання.
 - **TaskList** — іменований список задач: додавання, позначення виконаною, вибірка невиконаних.
 
-> Названо `TaskItem`, а не `Task`, щоб не конфліктувати з вбудованим типом Swift Concurrency `Task` (async/await), який, ймовірно, знадобиться в наступних лабах.
+> Названо `TaskItem`, а не `Task`, щоб не конфліктувати з вбудованим типом Swift Concurrency `Task` (async/await).
 
 ## Технічні вимоги
 
@@ -32,39 +39,83 @@
 1. Відкрити `TaskManager.xcodeproj` в Xcode.
 2. Обрати симулятор iPhone у верхній панелі.
 3. Натиснути ⌘R (Run).
-4. Одразу після запуску застосунок виконує демонстраційний сценарій і виводить
-   результат у консоль Xcode (View → Debug Area → Activate Console, або ⇧⌘Y).
-   На екрані також з'явиться список задач — тап по задачі перемикає її статус.
 
-## Де в коді реалізовано потрібні конструкції Swift
+Сценарій для перевірки: ввести назву задачі, обрати пріоритет, за бажанням увімкнути
+дедлайн → «Додати»; тапом по задачі перемкнути її статус; у блоці «Вигляд» змінити
+сортування або показати лише невиконані; повністю перезапустити застосунок — задачі
+залишаться.
+
+**Демо-режим.** Edit Scheme → Run → Arguments → Arguments Passed On Launch → додати
+`-demo`. Застосунок стартує з готовими задачами в пам'яті, без запису в `UserDefaults`.
+Це демонструє заміну залежності без змін у ViewModel (див. `docs/ARCHITECTURE.md`).
+
+## Тести
+
+Тести лежать у `TaskManagerTests/` (Swift Testing) і перевіряють логіку без UI та без
+реального сховища. Щоб запустити їх, потрібен тестовий таргет:
+
+1. File → New → Target… → **Unit Testing Bundle**, назва `TaskManagerTests`, Testing System — Swift Testing.
+2. Якщо Xcode створив шаблонний файл `TaskManagerTests.swift`, його можна видалити.
+3. Переконатися, що файли з папки `TaskManagerTests/` входять до цього таргета (File Inspector → Target Membership).
+4. ⌘U (Product → Test).
+
+## Архітектура (практична робота 2)
+
+Обрано **MVVM**: `ContentView` (View) ↔ `TaskListViewModel` (ViewModel) ↔ `TaskList`,
+`TaskItem` (Model) та `TaskRepository` (доступ до даних). Повний опис, схеми
+компонентів, обґрунтування вибору, обмеження, пояснення SOLID, перелік виправлених
+антипатернів і таблиця «патерн / принцип — компонент — призначення» —
+у **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
+```
+TaskManager/
+├── TaskManagerApp.swift       — точка входу, власник ViewModel
+├── ContentView.swift          — View
+├── App/AppEnvironment.swift   — composition root (вибір реалізацій залежностей)
+├── ViewModels/                — TaskListViewModel, SortOption
+├── Models/                    — TaskItem, Priority, TaskList
+├── Builders/                  — TaskItemBuilder (Builder)
+├── Strategies/                — TaskSortStrategy + 3 реалізації (Strategy)
+└── Repositories/              — TaskRepository, UserDefaultsTaskRepository (Adapter), InMemoryTaskRepository
+```
+
+### Патерни
+
+| Категорія | Патерн | Компонент | Призначення |
+|---|---|---|---|
+| Породжувальний | Builder | `TaskItemBuilder` | покрокове створення й валідація задачі |
+| Структурний | Adapter | `UserDefaultsTaskRepository` | привести `UserDefaults` до інтерфейсу `TaskRepository` |
+| Поведінковий | Strategy | `TaskSortStrategy` та реалізації | взаємозамінні способи сортування |
+
+### Єдиний сценарій через компоненти
+
+«Додати задачу»: `ContentView` → `TaskListViewModel.addTask` → `TaskItemBuilder.build` →
+`TaskList.add` → `TaskRepository.saveTasks` → `refresh()` (фільтр + Strategy) →
+`@Published tasks` → `ContentView` оновлюється. Діаграма послідовності — в
+`docs/ARCHITECTURE.md`.
+
+## Де в коді базові конструкції Swift (практична робота 1)
 
 | Конструкція | Де |
 |---|---|
-| `struct` | `TaskItem` (TaskManager/Models/TaskItem.swift) — семантика значення |
-| `class` | `TaskList` (TaskManager/Models/TaskList.swift) — семантика посилання |
-| `protocol` | `Describable` (TaskItem.swift), реалізують і `TaskItem`, і `TaskList` |
-| `enum` | `Priority` (TaskItem.swift): `.low` / `.medium` / `.high` |
-| `var` / `let` | властивості `TaskItem` і `TaskList`, локальні змінні в `describe()` |
-| властивості, методи, ініціалізація | `TaskItem.init`, `TaskList.init`, `add`, `toggleDone`, обчислювані властивості `completedCount`, `titles` |
-| колекція | `[TaskItem]` в `TaskList.tasks` |
-| optional + безпечне розгортання | `TaskItem.dueDate: Date?` — `if let` у `TaskItem.describe()`, `guard let` у `TaskList.toggleDone` |
-| умовна конструкція | `if/else` та `switch` у `Priority` і `TaskItem.describe()` |
-| обробка колекції | `filter`, `sorted`, `map` у `TaskList.pendingTasks()` і `TaskList.titles` |
+| `struct` | `TaskItem`, `TaskItemBuilder`, стратегії сортування — семантика значення |
+| `class` | `TaskList`, `TaskListViewModel`, репозиторії — семантика посилання |
+| `protocol` | `Describable`, `TaskRepository`, `TaskSortStrategy` |
+| `enum` | `Priority`, `SortOption`, `TaskItemBuilderError` |
+| `var` / `let` | властивості моделей, локальні змінні |
+| властивості, методи, ініціалізація | `TaskItem.init`, `TaskList.add/toggleDone`, обчислювані `completedCount`, `titles` |
+| колекція | `[TaskItem]` у `TaskList.tasks` |
+| optional + безпечне розгортання | `TaskItem.dueDate: Date?` — `if let` у `TaskItem.describe()` та `TaskListViewModel.addTask`, `guard let` у `TaskList.toggleDone` |
+| умовна конструкція | `if/else`, `switch` у `Priority`, `TaskItem.describe()`, `DueDateSortStrategy` |
+| обробка колекції | `filter` (`TaskList.pendingTasks`), `map` (`TaskList.titles`), `sorted` (стратегії) |
 
-## Сценарій (практичне завдання 5)
-
-Реалізовано в `ContentView.runDemoScenario()`:
-1. Створюються три задачі з різним пріоритетом, одна одразу позначена виконаною.
-2. Задачі додаються до `TaskList`.
-3. Перша задача позначається виконаною через `toggleDone`.
-4. У консоль виводиться весь список і окремо — невиконані задачі, відсортовані за пріоритетом (`pendingTasks()`).
-5. Той самий стан відображається на екрані: список задач з чекбоксами (тап перемикає `isDone`).
+Початкова версія для лаби 1 лежить за тегом `practical-1` (`git checkout practical-1`).
 
 ## Git
 
-Репозиторій ініціалізовано разом зі створенням проєкту в Xcode.
 `.gitignore` виключає користувацькі файли Xcode (`xcuserdata/`), кеші збірки
 (`DerivedData/`, `build/`, `.build/`) та системні файли macOS (`.DS_Store`) —
 під контролем версій залишаються лише файли проєкту, потрібні для збірки.
 
-Тег, що відповідає завершеній роботі: `practical-1`.
+Коміти практичної роботи 2: MVVM-каркас → патерни (Builder, Adapter, Strategy) →
+документація, тести, README.
