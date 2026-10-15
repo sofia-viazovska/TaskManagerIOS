@@ -1,19 +1,22 @@
-# Архітектура TaskManager (практична робота 2)
+# Архітектура TaskManager (практичні роботи 2–3)
 
 Документ описує, як розподілено відповідальність у застосунку, які патерни
 проєктування й принципи SOLID застосовано та де саме вони у коді.
 
 ## 1. Аналіз сценаріїв і компонентів
 
-Основні сценарії: переглянути список задач, додати задачу (з пріоритетом і
-необов'язковим дедлайном), позначити задачу виконаною, змінити сортування,
-показати лише невиконані, зберегти стан між запусками.
+Основні сценарії: переглянути список задач, додати задачу (з пріоритетом,
+необов'язковим дедлайном і нотатками), відкрити деталі, відредагувати чи видалити
+задачу, позначити виконаною, змінити сортування, показати лише невиконані, подивитися
+статистику, зберегти стан між запусками. З лаби 3 це кілька екранів зі
+керованою навігацією — див. [NAVIGATION.md](NAVIGATION.md).
 
 | Відповідальність | Компоненти | Файли |
 |---|---|---|
-| Представлення | `ContentView` — форма, список, перемикачі | `ContentView.swift` |
+| Представлення | `ContentView` (корінь навігації), `TaskListScreen`, `TaskDetailScreen`, `TaskEditorScreen`, `StatisticsScreen`, компоненти | `ContentView.swift`, `Views/` |
+| Навігація | `AppRouter`, `TaskRoute`, `TaskModal`, `AppTab` | `Navigation/` |
 | Логіка екрана (презентаційна) | `TaskListViewModel`, `SortOption` | `ViewModels/` |
-| Доменна логіка | `TaskList`, `TaskItem`, `Priority` | `Models/` |
+| Доменна логіка | `TaskList`, `TaskItem`, `Priority`, `TaskDraft`, `TaskStatistics` | `Models/` |
 | Створення та валідація задач | `TaskItemBuilder` | `Builders/` |
 | Правила впорядкування | `TaskSortStrategy` та 3 реалізації | `Strategies/` |
 | Доступ до даних | `TaskRepository` + `UserDefaultsTaskRepository`, `InMemoryTaskRepository` | `Repositories/` |
@@ -23,8 +26,8 @@
 
 **Model** — `TaskItem`, `TaskList`, `Priority`: дані та бізнес-правила, нічого не
 знають про SwiftUI і про сховище.
-**View** — `ContentView`: лише відображає стан і передає події; не створює
-моделей, не звертається до сховища.
+**View** — `ContentView` та екрани в `Views/`: лише відображають стан і передають
+події; не створюють моделей, не звертаються до сховища, не створюють інші екрани.
 **ViewModel** — `TaskListViewModel`: тримає стан екрана (`@Published`), приймає
 команди від View, координує Model, Builder, Strategy і Repository.
 
@@ -32,7 +35,7 @@
 
 - SwiftUI побудований на декларативному зв'язуванні «стан → екран»: `@Published` у
   `ObservableObject` дає це «з коробки», тож ViewModel природно лягає на фреймворк.
-- Проєкт малий: один екран і один основний сценарій. MVC у SwiftUI не має класичного
+- Проєкт малий: кілька екранів над одним спільним станом. MVC у SwiftUI не має класичного
   Controller, а логіка «розтікається» у View; VIPER (Interactor, Presenter, Router,
   Entity, View) додав би багато шарів без користі для одного екрана.
 - ViewModel не залежить від UI-віджетів, тому її логіку можна тестувати без екрана
@@ -42,8 +45,8 @@
 
 - Зі зростанням кількості екранів ViewModel може розростися. Тоді логіку треба
   виносити в окремі сервіси/use case-об'єкти.
-- Навігації між екранами поки немає. З появою кількох екранів знадобиться окремий
-  механізм (координатор/router), якого MVVM сам по собі не дає.
+- Навігації MVVM сам по собі не дає. У лабі 3 її винесено в окремий `AppRouter`
+  (див. розділ 10), щоб ViewModel не знала про екрани, а екрани — один про одного.
 - Зв'язування стану прихованими оновленнями (`@Published`) ускладнює налагодження
   порівняно з явними викликами.
 
@@ -52,7 +55,10 @@
 ```mermaid
 flowchart LR
     subgraph V["View"]
-        CV["ContentView"]
+        CV["ContentView + екрани"]
+    end
+    subgraph N["Навігація"]
+        RT["AppRouter"]
     end
     subgraph VMG["ViewModel"]
         VM["TaskListViewModel"]
@@ -74,6 +80,8 @@ flowchart LR
     ENV["AppEnvironment (composition root)"]
 
     CV -->|дії користувача| VM
+    CV -->|команди переходів| RT
+    RT -->|"@Published path, modal, tab"| CV
     VM -->|"@Published стан"| CV
     VM --> TL
     VM --> B
@@ -92,15 +100,15 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     actor U as Користувач
-    participant V as ContentView
+    participant V as TaskEditorScreen
     participant VM as TaskListViewModel
     participant B as TaskItemBuilder
     participant TL as TaskList
     participant R as TaskRepository
 
-    U->>V: вводить назву, натискає «Додати»
-    V->>VM: addTask(title, priority, dueInDays)
-    VM->>B: withPriority / dueIn / build()
+    U->>V: вводить назву, натискає «Зберегти»
+    V->>VM: create(draft)
+    VM->>B: withPriority / withDueDate / withNotes / build()
     B-->>VM: TaskItem або помилка валідації
     VM->>TL: add(task)
     VM->>R: saveTasks(tasks)
@@ -121,9 +129,13 @@ sequenceDiagram
 
 | Патерн | Категорія | Задача | Учасники | Де використано |
 |---|---|---|---|---|
-| **Builder** | Породжувальний | Створювати `TaskItem` покроково й гарантувати валідність (назва не порожня й не задовга) | Product: `TaskItem`; Builder: `TaskItemBuilder`; Director: `TaskListViewModel`, `AppEnvironment` | `ViewModel.addTask`, `AppEnvironment.demoTasks` |
+| **Builder** | Породжувальний | Створювати `TaskItem` покроково й гарантувати валідність (назва не порожня й не задовга) | Product: `TaskItem`; Builder: `TaskItemBuilder`; Director: `TaskListViewModel`, `AppEnvironment` | `ViewModel.create/update`, `AppEnvironment.demoTasks` |
 | **Adapter** | Структурний | Застосунок очікує `TaskRepository` (`[TaskItem]`), а `UserDefaults` працює з `Data` за ключем | Target: `TaskRepository`; Adaptee: `UserDefaults` + `JSONEncoder/Decoder`; Adapter: `UserDefaultsTaskRepository`; Client: `TaskListViewModel` | `AppEnvironment.makeLiveViewModel` |
 | **Strategy** | Поведінковий | Змінювати спосіб сортування під час роботи без розгалужень у ViewModel | Strategy: `TaskSortStrategy`; Concrete: `PrioritySortStrategy`, `DueDateSortStrategy`, `TitleSortStrategy`; Context: `TaskListViewModel` | `ViewModel.refresh` |
+
+Навігація (лаба 3) реалізована як **Router** — окремий об'єкт, що володіє станом
+переходів (див. розділ 10). Це не патерн із каталогу GoF, а поширений архітектурний
+прийом для MVVM.
 
 Додатково (платформний патерн): `@Published` + `ObservableObject` — це **Observer**:
 View підписується на зміни стану ViewModel і перемальовується автоматично.
@@ -208,7 +220,8 @@ View підписується на зміни стану ViewModel і перем
 
 | Патерн / принцип | Компонент | Призначення |
 |---|---|---|
-| MVVM | `ContentView` / `TaskListViewModel` / `TaskList`, `TaskItem` | Розділення відображення, стану екрана і доменної логіки |
+| MVVM | екрани / `TaskListViewModel` / `TaskList`, `TaskItem` | Розділення відображення, стану екранів і доменної логіки |
+| Router | `AppRouter`, `TaskRoute`, `TaskModal` | Керована навігація окремо від View і ViewModel |
 | Builder | `TaskItemBuilder` | Покрокове створення та валідація задачі |
 | Adapter | `UserDefaultsTaskRepository` | Привести `UserDefaults` до інтерфейсу `TaskRepository` |
 | Strategy | `TaskSortStrategy`, `PrioritySortStrategy`, `DueDateSortStrategy`, `TitleSortStrategy` | Взаємозамінні способи сортування |
@@ -220,3 +233,18 @@ View підписується на зміни стану ViewModel і перем
 | D (DIP) | `TaskListViewModel` → `any TaskRepository`, `now` | Залежність від абстракцій, конкретику обирає `AppEnvironment` |
 | DI | `TaskListViewModel.init`, `UserDefaultsTaskRepository.init` | Залежності приходять ззовні |
 | Composition root | `AppEnvironment` | Єдине місце вибору реалізацій і читання глобальних джерел |
+
+## 10. Навігація (практична робота 3)
+
+Повний опис — у [NAVIGATION.md](NAVIGATION.md); тут — місце навігації в архітектурі.
+
+- **Що додано:** `AppRouter` (`@Published` вкладка, стек `[TaskRoute]`, модальне вікно
+  `TaskModal?`). `ContentView` стає коренем навігації: `TabView` → `NavigationStack(path:)`
+  → `navigationDestination(for:)` та `sheet(item:)`.
+- **Напрямок залежностей:** екрани → Router і ViewModel. Router не залежить ні від чого
+  (крім типу `TaskItem.ID`); ViewModel не знає про Router.
+- **Єдине джерело правди про дані** — `TaskListViewModel`. Маршрути несуть тільки `id`,
+  тому після створення чи редагування всі екрани оновлюються самі.
+- **Розширення:** новий екран = новий `case` у `TaskRoute`/`TaskModal` + гілка в
+  `navigationDestination`/`sheet`; існуючі екрани не змінюються.
+- **Тестування:** `AppRouterTests` перевіряють переходи без UI.
