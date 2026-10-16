@@ -66,7 +66,12 @@ struct TaskListScreen: View {
             ToolbarItem(placement: .topBarLeading) {
                 viewMenu
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    router.presentImport()
+                } label: {
+                    Label("Імпорт із сервера", systemImage: "icloud.and.arrow.down")
+                }
                 Button {
                     router.presentCreate()
                 } label: {
@@ -101,6 +106,13 @@ struct TaskListScreen: View {
             Text(viewModel.showOnlyPending
                  ? "Невиконаних задач немає."
                  : "Натисніть «+», щоб додати першу задачу.")
+        } actions: {
+            if !viewModel.showOnlyPending {
+                Button("Імпортувати із сервера") {
+                    router.presentImport()
+                }
+                .buttonStyle(.bordered)
+            }
         }
     }
 

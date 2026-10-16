@@ -14,6 +14,7 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var viewModel: TaskListViewModel
     @ObservedObject var router: AppRouter
+    @ObservedObject var serverTasks: ServerTasksViewModel
 
     var body: some View {
         TabView(selection: $router.selectedTab) {
@@ -35,7 +36,12 @@ struct ContentView: View {
         }
         // Модальне вікно висить на корені: його можна відкрити з будь-якого екрана стеку.
         .sheet(item: $router.modal) { modal in
-            TaskEditorScreen(modal: modal, viewModel: viewModel, router: router)
+            switch modal {
+            case .importFromServer:
+                ServerImportScreen(viewModel: serverTasks, tasks: viewModel, router: router)
+            case .create, .edit:
+                TaskEditorScreen(modal: modal, viewModel: viewModel, router: router)
+            }
         }
         // Завантаження — один раз для всього застосунку, а не при кожному поверненні на список.
         .task { viewModel.load() }
@@ -45,6 +51,9 @@ struct ContentView: View {
 #Preview {
     ContentView(
         viewModel: AppEnvironment.makeDemoViewModel(),
-        router: AppEnvironment.makeRouter()
+        router: AppEnvironment.makeRouter(),
+        serverTasks: AppEnvironment.makeServerTasksViewModel(
+            service: MockTodoService(script: [.todos(RemoteTodo.samples)])
+        )
     )
 }

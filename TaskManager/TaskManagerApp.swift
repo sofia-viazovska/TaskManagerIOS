@@ -12,10 +12,11 @@ struct TaskManagerApp: App {
     // Власник ViewModel і Router — застосунок; конкретні залежності збирає AppEnvironment.
     @StateObject private var viewModel = AppEnvironment.makeViewModel()
     @StateObject private var router = AppEnvironment.makeRouter()
+    @StateObject private var serverTasks = AppEnvironment.makeServerTasksViewModel()
 
     var body: some Scene {
         WindowGroup {
-            ContentView(viewModel: viewModel, router: router)
+            ContentView(viewModel: viewModel, router: router, serverTasks: serverTasks)
         }
     }
 }

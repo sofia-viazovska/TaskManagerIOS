@@ -117,4 +117,38 @@ struct AppRouterTests {
         #expect(TaskModal.create.id == "create")
         #expect(TaskModal.edit(first).id != TaskModal.edit(second).id)
     }
+
+    // MARK: Імпорт із сервера (практична 4)
+
+    @Test func presentImportOpensImportModal() {
+        let router = AppRouter()
+
+        router.presentImport()
+
+        #expect(router.modal == .importFromServer)
+    }
+
+    @Test func importModalHasOwnIdentifier() {
+        #expect(TaskModal.importFromServer.id == "import")
+        #expect(TaskModal.importFromServer.id != TaskModal.create.id)
+    }
+
+    @Test func secondModalIsIgnoredWhileImportIsOpen() {
+        let router = AppRouter()
+        router.presentImport()
+
+        router.presentCreate()
+        router.presentEdit(UUID())
+
+        #expect(router.modal == .importFromServer)
+    }
+
+    @Test func dismissClosesImportModal() {
+        let router = AppRouter()
+        router.presentImport()
+
+        router.dismissModal()
+
+        #expect(router.modal == nil)
+    }
 }

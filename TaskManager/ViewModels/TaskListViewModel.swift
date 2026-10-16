@@ -94,13 +94,26 @@ final class TaskListViewModel: ObservableObject {
 
     /// Створює задачу з чернетки. Помилку валідації кидає далі — її показує форма,
     /// яка й викликала команду, а не загальний банер списку.
-    func create(_ draft: TaskDraft) throws {
-        let task = try builder(for: draft).build()
+    /// `isDone` потрібен імпорту з сервера: серверна задача може вже бути виконаною.
+    @discardableResult
+    func create(_ draft: TaskDraft, isDone: Bool = false) throws -> TaskItem.ID {
+        let task = try builder(for: draft)
+            .markedDone(isDone)
+            .build()
 
         taskList.add(task)
         errorMessage = nil
         persist()
         refresh()
+        return task.id
+    }
+
+    /// Чи є вже задача з такою назвою (без урахування регістру й крайніх пробілів).
+    /// Перевіряється повний список, а не відфільтрований `tasks`: при увімкненому
+    /// «Лише невиконані» виконана задача теж має вважатися наявною — інакше імпорт створить дубль.
+    func hasTask(titled title: String) -> Bool {
+        let key = Self.normalized(title)
+        return taskList.tasks.contains { Self.normalized($0.title) == key }
     }
 
     /// Оновлює наявну задачу: id і стан «виконано» зберігаються, решта — з чернетки.
@@ -134,6 +147,10 @@ final class TaskListViewModel: ObservableObject {
     }
 
     // MARK: Приватна логіка
+
+    private static func normalized(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
 
     /// Builder: накопичуємо значення з чернетки, а валідацію виконує build().
     private func builder(for draft: TaskDraft) -> TaskItemBuilder {

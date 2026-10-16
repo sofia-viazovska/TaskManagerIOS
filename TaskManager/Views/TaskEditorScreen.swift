@@ -38,7 +38,8 @@ struct TaskEditorScreen: View {
 
         let start: TaskDraft
         switch modal {
-        case .create:
+        case .create, .importFromServer:
+            // `.importFromServer` сюди не потрапляє (ContentView показує для нього інший екран).
             start = TaskDraft()
         case .edit(let id):
             // Задачу могли видалити, поки відкривали форму — тоді порожня чернетка,
@@ -165,7 +166,7 @@ struct TaskEditorScreen: View {
 
     private var navigationTitle: String {
         switch modal {
-        case .create: return "Нова задача"
+        case .create, .importFromServer: return "Нова задача"
         case .edit: return "Редагування"
         }
     }
@@ -183,7 +184,7 @@ struct TaskEditorScreen: View {
     private func save() {
         do {
             switch modal {
-            case .create:
+            case .create, .importFromServer:
                 try viewModel.create(draft)
             case .edit(let id):
                 try viewModel.update(id: id, with: draft)

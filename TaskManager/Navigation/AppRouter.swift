@@ -35,10 +35,14 @@ nonisolated enum TaskRoute: Hashable {
 nonisolated enum TaskModal: Identifiable, Hashable {
     case create
     case edit(TaskItem.ID)
+    /// Екран «Імпорт із сервера» (практична 4).
+    case importFromServer
 
     /// Стабільний ідентифікатор для `.sheet(item:)`: різні задачі — різні вікна.
     var id: String {
         switch self {
+        case .importFromServer:
+            return "import"
         case .create:
             return "create"
         case .edit(let taskID):
@@ -85,6 +89,10 @@ final class AppRouter: ObservableObject {
 
     func presentEdit(_ id: TaskItem.ID) {
         present(.edit(id))
+    }
+
+    func presentImport() {
+        present(.importFromServer)
     }
 
     func dismissModal() {
