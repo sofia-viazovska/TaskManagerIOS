@@ -57,7 +57,11 @@ flowchart TD
 | `modal` | `TaskModal?` | відкрите модальне вікно |
 
 Команди: `showDetail(of:)`, `pop()`, `popToRoot()`, `presentCreate()`,
-`presentEdit(_:)`, `dismissModal()`, `showTaskList()`, `showStatistics()`.
+`presentEdit(_:)`, `presentImport()`, `dismissModal()`, `showTaskList()`, `showStatistics()`.
+
+> Практична 4: у `TaskModal` додано `case importFromServer` — екран «Імпорт із сервера»
+> відкривається тим самим механізмом `sheet(item:)`; `ContentView` обирає для нього
+> `ServerImportScreen`, а для `.create` / `.edit` — `TaskEditorScreen`.
 
 Розподіл відповідальності:
 

@@ -1,4 +1,4 @@
-# Архітектура TaskManager (практичні роботи 2–3)
+# Архітектура TaskManager (практичні роботи 2–4)
 
 Документ описує, як розподілено відповідальність у застосунку, які патерни
 проєктування й принципи SOLID застосовано та де саме вони у коді.
@@ -72,6 +72,12 @@ flowchart LR
     subgraph ST["Strategy"]
         S["TaskSortStrategy"]
     end
+    subgraph NW["Мережа (практична 4)"]
+        SVM["ServerTasksViewModel"]
+        TS["TodoService (protocol)"]
+        RTS["RemoteTodoService + APIClient"]
+        MTS["MockTodoService"]
+    end
     subgraph D["Дані"]
         R["TaskRepository (protocol)"]
         UD["UserDefaultsTaskRepository"]
@@ -93,6 +99,11 @@ flowchart LR
     UD -.->|реалізує| R
     IM -.->|реалізує| R
     ENV -.->|створює і передає залежності| VM
+    CV -->|"завантаження, стан"| SVM
+    SVM -->|залежить від абстракції| TS
+    RTS -.->|реалізує| TS
+    MTS -.->|реалізує| TS
+    ENV -.->|обирає реалізацію| SVM
 ```
 
 ### Сценарій «Додати задачу»
@@ -212,7 +223,9 @@ View підписується на зміни стану ViewModel і перем
 - `RepositoryTests` — контракт «save → load» для обох реалізацій, пошкоджені дані,
   невідомий пріоритет;
 - `TaskListViewModelTests` — додавання, перемикання, фільтр, сортування, помилки
-  сховища (через підроблений репозиторій, що завжди падає).
+  сховища (через підроблений репозиторій, що завжди падає);
+- `NetworkingTests`, `ServerTasksViewModelTests`, `ImportFromServerTests` — мережевий шар
+  із заглушкою транспорту й `MockTodoService`, без реальної мережі (див. [NETWORKING.md](NETWORKING.md)).
 
 Як додати тестовий таргет, описано в README.
 
@@ -233,6 +246,10 @@ View підписується на зміни стану ViewModel і перем
 | D (DIP) | `TaskListViewModel` → `any TaskRepository`, `now` | Залежність від абстракцій, конкретику обирає `AppEnvironment` |
 | DI | `TaskListViewModel.init`, `UserDefaultsTaskRepository.init` | Залежності приходять ззовні |
 | Composition root | `AppEnvironment` | Єдине місце вибору реалізацій і читання глобальних джерел |
+| Facade (спрощення) | `APIClient` | Один виклик `get` ховає складання запиту, статус, декодування, помилки |
+| DTO | `RemoteTodo` | Форма даних сервера окремо від доменної моделі `TaskItem` |
+| Test double / Stub | `MockTodoService`, `StubTransport` (тести) | Керовані відповіді замість реальної мережі |
+| D (DIP), мережа | `ServerTasksViewModel` → `any TodoService`; `APIClient` → `any HTTPTransport` | Залежність від абстракцій; `URLSession` лише одна з реалізацій |
 
 ## 10. Навігація (практична робота 3)
 
@@ -248,3 +265,20 @@ View підписується на зміни стану ViewModel і перем
 - **Розширення:** новий екран = новий `case` у `TaskRoute`/`TaskModal` + гілка в
   `navigationDestination`/`sheet`; існуючі екрани не змінюються.
 - **Тестування:** `AppRouterTests` перевіряють переходи без UI.
+
+## 11. Мережевий шар (практична робота 4)
+
+Повний опис — у [NETWORKING.md](NETWORKING.md); тут — місце мережі в архітектурі.
+
+- **Що додано:** папка `Networking/` (`Endpoint`, `APIClient`, `HTTPTransport`, `NetworkError`, `RemoteTodo`,
+  `TodoService`, `RemoteTodoService`, `MockTodoService`), `ServerTasksViewModel` зі станом `ImportState`,
+  екран `ServerImportScreen`, модальний маршрут `TaskModal.importFromServer`.
+- **Напрямок залежностей:** екран → `ServerTasksViewModel` → `TodoService` (протокол) ← `RemoteTodoService` → `APIClient`
+  → `HTTPTransport` (протокол) ← `URLSession`. Вищі шари не знають про нижчі реалізації.
+- **Окремий ViewModel для мережі.** `TaskListViewModel` залишився єдиним джерелом правди про *локальні* задачі
+  і не отримав мережевих залежностей (SRP): стан завантаження — прохідний, його немає сенсу тримати разом із даними задач.
+  Екран імпорту зустрічає обидва ViewModel: читає серверні дані з одного, а додає задачі через інший.
+- **Імпорт проходить ту саму валідацію**, що й ручне створення: `RemoteTodo.makeDraft()` → `TaskListViewModel.create`
+  → `TaskItemBuilder` → `TaskRepository`.
+- **Розширення:** новий endpoint = новий метод у `TodoService`-подібному протоколі та `Endpoint`; `APIClient`
+  і екрани не змінюються. Нове джерело даних = нова реалізація `TodoService`.
